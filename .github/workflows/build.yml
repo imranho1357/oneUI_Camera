@@ -26,7 +26,6 @@ jobs:
         unzip -q "$ZIP_FILE" -d web_extracted
         
         echo "🎯 Locating package.json dynamically..."
-        # Find where package.json actually is inside the extracted folders
         PACKAGE_JSON_PATH=$(find web_extracted -name "package.json" | head -n 1)
         
         if [ -z "$PACKAGE_JSON_PATH" ]; then
@@ -37,15 +36,13 @@ jobs:
         PROJECT_ROOT=$(dirname "$PACKAGE_JSON_PATH")
         echo "🎯 Project root located at: $PROJECT_ROOT"
         
-        # Move everything from that folder right into the root workspace folder
         cp -r "$PROJECT_ROOT"/* . 2>/dev/null || true
         cp -r "$PROJECT_ROOT"/.* . 2>/dev/null || true
         
         echo "✅ Web environment layout successfully prepared!"
         
-        # Generate clean package lock constraints and build production web assets
-        npm install --package-lock-only || true
-        npm install
+        # CRITICAL FIX: Added --legacy-peer-deps to ignore the strict package version conflict checks on GitHub
+        npm install --legacy-peer-deps
         npm run build
 
     - name: Set up Java JDK 17
