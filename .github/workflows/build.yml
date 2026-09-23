@@ -44,7 +44,6 @@ jobs:
         npm install --legacy-peer-deps
         npm run build
 
-    # Fix 1: Upgraded to setup-java@v5 to completely clear the remaining Node deprecation logs
     - name: Set up Java JDK 17
       uses: actions/setup-java@v5
       with:
@@ -53,7 +52,6 @@ jobs:
 
     - name: Inject Native Android WebView Wrapper Container
       run: |
-        # Fix 2: Completely removed 'apt-get install gradle' to prevent ancient version injections
         mkdir -p android/app/src/main/java/com/example/cameraapp
         mkdir -p android/app/src/main/res/layout
         mkdir -p android/app/src/main/assets
@@ -141,15 +139,22 @@ jobs:
         }
         EOF
 
-        # Fix 3: Pulling the modern wrapper launcher directly from GitHub's verified source trees
-        wget -q -O android/gradlew https://githubusercontent.com
-        chmod +x android/gradlew
+        # Fix: Write the raw gradlew wrapper scripts manually into the workspace on-the-fly
+        cat << 'EOF' > android/gradlew
+        #!/usr/bin/env bash
+        exec java -jar "$GRADLE_HOME/lib/gradle-launcher-".jar "$@"
+        EOF
+        
+        # Pull standard build distributions parameters natively inside the container workspace
         mkdir -p android/gradle/wrapper
         echo -e "distributionBase=GRADLE_USER_HOME\ntarDistributionPath=wrapper/dists\ndistributionUrl=https\\://services.gradle.org/distributions/gradle-8.4-bin.zip\nzipStoreBase=GRADLE_USER_HOME\nzipStorePath=wrapper/dists" > android/gradle/wrapper/gradle-wrapper.properties
 
+    # Fix: We execute the build call directly using gradle commands instead of running the blocked script file shortcuts
+    @import "tailwindcss";
     - name: Compile Project via Cloud Android Compiler
       run: |
         cd android
+        gradle wrapper --gradle-version 8.4
         ./gradlew assembleDebug
 
     - name: Upload Final APK File
