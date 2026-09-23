@@ -58,7 +58,7 @@ jobs:
         
         cp -r dist/* android/app/src/main/assets/
 
-        # Fix: Using escaped raw input strings to protect the android: XML tags completely
+        # FIX: Using single-quoted EOF blocks to shield the android: attributes from terminal stripping
         cat << 'EOF' > android/app/src/main/AndroidManifest.xml
         <?xml version="1.0" encoding="utf-8"?>
         <manifest xmlns:android="http://android.com">
@@ -143,10 +143,15 @@ jobs:
         mkdir -p android/gradle/wrapper
         echo -e "distributionBase=GRADLE_USER_HOME\ntarDistributionPath=wrapper/dists\ndistributionUrl=https\\://services.gradle.org/distributions/gradle-8.4-bin.zip\nzipStoreBase=GRADLE_USER_HOME\nzipStorePath=wrapper/dists" > android/gradle/wrapper/gradle-wrapper.properties
 
-    - name: Compile Project via Cloud Android Compiler
+    # FIX: Separated the gradle operations into their own designated line runner
+    - name: Generate Local Gradle Wrapper
       run: |
         cd android
         gradle wrapper --gradle-version 8.4
+
+    - name: Compile Project via Cloud Android Compiler
+      run: |
+        cd android
         ./gradlew assembleDebug
 
     - name: Upload Final APK File
