@@ -139,21 +139,14 @@ jobs:
         }
         EOF
 
-        # Fix: Write the raw gradlew wrapper scripts manually into the workspace on-the-fly
-        cat << 'EOF' > android/gradlew
-        #!/usr/bin/env bash
-        exec java -jar "$GRADLE_HOME/lib/gradle-launcher-".jar "$@"
-        EOF
-        
-        # Pull standard build distributions parameters natively inside the container workspace
+        # Configure local wrapper parameters natively
         mkdir -p android/gradle/wrapper
         echo -e "distributionBase=GRADLE_USER_HOME\ntarDistributionPath=wrapper/dists\ndistributionUrl=https\\://services.gradle.org/distributions/gradle-8.4-bin.zip\nzipStoreBase=GRADLE_USER_HOME\nzipStorePath=wrapper/dists" > android/gradle/wrapper/gradle-wrapper.properties
 
-    # Fix: We execute the build call directly using gradle commands instead of running the blocked script file shortcuts
-    @import "tailwindcss";
     - name: Compile Project via Cloud Android Compiler
       run: |
         cd android
+        # Fix: Running the generation step directly inside its structural directory mapping layer
         gradle wrapper --gradle-version 8.4
         ./gradlew assembleDebug
 
