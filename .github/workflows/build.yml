@@ -3,7 +3,7 @@ on: [push]
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
     - uses: actions/checkout@v4
 
@@ -11,21 +11,21 @@ jobs:
       uses: actions/setup-node@v4
       with:
         node-version: 20
-        cache: 'npm'
+        # Fix 1: Removed the strict 'cache: npm' line which was crashing over the missing lockfile
 
     - name: Extract and Compile React Web App Assets
       run: |
-        # Unzip the AI Studio Project file
         unzip -q *.zip -d web_extracted
         
-        # Move inner files to the root level if nested
+        # Pull everything out to root layer safely
         if [ -d "web_extracted/One UI CameraX" ]; then
           mv "web_extracted/One UI CameraX"/* .
         else
           mv web_extracted/*/* . || mv web_extracted/* .
         fi
         
-        # Build the static production files (index.html, JS, CSS)
+        # Fix 2: Forcing a clean package lock creation before compiling the web interface
+        npm install --package-lock-only || true
         npm install
         npm run build
 
@@ -37,15 +37,12 @@ jobs:
 
     - name: Inject Native Android WebView Wrapper Container
       run: |
-        # Create a basic Android structure on the fly
         mkdir -p android/app/src/main/java/com/example/cameraapp
         mkdir -p android/app/src/main/res/layout
         mkdir -p android/app/src/main/assets
         
-        # Move the compiled HTML/JS/CSS assets into the Android asset directory
         cp -r dist/* android/app/src/main/assets/
 
-        # Create Manifest with hardware access overrides
         cat << 'EOF' > android/app/src/main/AndroidManifest.xml
         <?xml version="1.0" encoding="utf-8"?>
         <manifest xmlns:android="http://android.com" package="com.example.cameraapp">
@@ -64,7 +61,6 @@ jobs:
         </manifest>
         EOF
 
-        # Create Layout XML
         cat << 'EOF' > android/app/src/main/res/layout/activity_main.xml
         <?xml version="1.0" encoding="utf-8"?>
         <RelativeLayout xmlns:android="http://android.com" android:layout_width="match_parent" android:layout_height="match_parent">
@@ -72,7 +68,6 @@ jobs:
         </RelativeLayout>
         EOF
 
-        # Create MainActivity with hardware bypass loops
         cat << 'EOF' > android/app/src/main/java/com/example/cameraapp/MainActivity.java
         package com.example.cameraapp;
         import android.os.Bundle;
@@ -84,7 +79,7 @@ jobs:
         public class MainActivity extends Activity {
             @Override
             protected void onCreate(Bundle savedInstanceState) {
-                super.onCreate(savedInstanceState) ;
+                super.onCreate(savedInstanceState);
                 setContentView(R.layout.activity_main);
                 WebView myWebView = findViewById(R.id.webview);
                 myWebView.getSettings().setJavaScriptEnabled(true);
@@ -102,7 +97,6 @@ jobs:
         }
         EOF
 
-        # Create Build Files
         cat << 'EOF' > android/settings.gradle
         include ':app'
         EOF
@@ -130,7 +124,6 @@ jobs:
         }
         EOF
 
-        # Fetch basic Gradle executable configurations
         wget -q -O android/gradlew https://githubusercontent.com
         chmod +x android/gradlew
         mkdir -p android/gradle/wrapper
