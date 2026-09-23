@@ -11,20 +11,39 @@ jobs:
       uses: actions/setup-node@v4
       with:
         node-version: 20
-        # Fix 1: Removed the strict 'cache: npm' line which was crashing over the missing lockfile
 
-    - name: Extract and Compile React Web App Assets
+    - name: Dynamically Find and Extract Web App Assets
       run: |
-        unzip -q *.zip -d web_extracted
+        echo "🔍 Searching for your project zip file..."
+        ZIP_FILE=$(find . -maxdepth 3 -name "*.zip" | head -n 1)
         
-        # Pull everything out to root layer safely
-        if [ -d "web_extracted/One UI CameraX" ]; then
-          mv "web_extracted/One UI CameraX"/* .
-        else
-          mv web_extracted/*/* . || mv web_extracted/* .
+        if [ -z "$ZIP_FILE" ]; then
+          echo "❌ ERROR: No .zip archive found in your repository."
+          exit 1
         fi
         
-        # Fix 2: Forcing a clean package lock creation before compiling the web interface
+        echo "📦 Found archive: $ZIP_FILE. Extracting assets..."
+        unzip -q "$ZIP_FILE" -d web_extracted
+        
+        echo "🎯 Locating package.json dynamically..."
+        # Find where package.json actually is inside the extracted folders
+        PACKAGE_JSON_PATH=$(find web_extracted -name "package.json" | head -n 1)
+        
+        if [ -z "$PACKAGE_JSON_PATH" ]; then
+          echo "❌ ERROR: Could not find package.json anywhere inside the ZIP."
+          exit 1
+        fi
+        
+        PROJECT_ROOT=$(dirname "$PACKAGE_JSON_PATH")
+        echo "🎯 Project root located at: $PROJECT_ROOT"
+        
+        # Move everything from that folder right into the root workspace folder
+        cp -r "$PROJECT_ROOT"/* . 2>/dev/null || true
+        cp -r "$PROJECT_ROOT"/.* . 2>/dev/null || true
+        
+        echo "✅ Web environment layout successfully prepared!"
+        
+        # Generate clean package lock constraints and build production web assets
         npm install --package-lock-only || true
         npm install
         npm run build
