@@ -41,7 +41,6 @@ jobs:
         
         echo "✅ Web environment layout successfully prepared!"
         
-        # CRITICAL FIX: Added --legacy-peer-deps to ignore the strict package version conflict checks on GitHub
         npm install --legacy-peer-deps
         npm run build
 
@@ -51,8 +50,11 @@ jobs:
         java-version: '17'
         distribution: 'temurin'
 
+    # Fix: We install gradle via apt and use it to build a local un-throttled wrapper cleanly
     - name: Inject Native Android WebView Wrapper Container
       run: |
+        sudo apt-get update -y > /dev/null && sudo apt-get install -y gradle > /dev/null
+        
         mkdir -p android/app/src/main/java/com/example/cameraapp
         mkdir -p android/app/src/main/res/layout
         mkdir -p android/app/src/main/assets
@@ -140,10 +142,10 @@ jobs:
         }
         EOF
 
-        wget -q -O android/gradlew https://githubusercontent.com
-        chmod +x android/gradlew
-        mkdir -p android/gradle/wrapper
-        echo -e "distributionBase=GRADLE_USER_HOME\ntarDistributionPath=wrapper/dists\ndistributionUrl=https\\://services.gradle.org/distributions/gradle-8.4-bin.zip\nzipStoreBase=GRADLE_USER_HOME\nzipStorePath=wrapper/dists" > android/gradle/wrapper/gradle-wrapper.properties
+        # Generate unthrottled wrapper variables locally via standard commands
+        cd android
+        gradle wrapper --gradle-version 8.4 --distribution-type bin > /dev/null
+        chmod +x gradlew
 
     - name: Compile Project via Cloud Android Compiler
       run: |
