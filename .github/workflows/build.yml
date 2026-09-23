@@ -1,55 +1,148 @@
-name: Dynamic Unzip and Build APK
+name: Compile Web Project to Android APK
 on: [push]
 
 jobs:
   build:
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4
 
-    - name: Set up JDK 17
+    - name: Set up Node.js Environment
+      uses: actions/setup-node@v4
+      with:
+        node-version: 20
+        cache: 'npm'
+
+    - name: Extract and Compile React Web App Assets
+      run: |
+        # Unzip the AI Studio Project file
+        unzip -q *.zip -d web_extracted
+        
+        # Move inner files to the root level if nested
+        if [ -d "web_extracted/One UI CameraX" ]; then
+          mv "web_extracted/One UI CameraX"/* .
+        else
+          mv web_extracted/*/* . || mv web_extracted/* .
+        fi
+        
+        # Build the static production files (index.html, JS, CSS)
+        npm install
+        npm run build
+
+    - name: Set up Java JDK 17
       uses: actions/setup-java@v4
       with:
         java-version: '17'
         distribution: 'temurin'
 
-    # Fix: This deep scan automatically locates and flattens any zip folder layer hierarchy
-    - name: Dynamically Locate and Extract AI Studio Code
+    - name: Inject Native Android WebView Wrapper Container
       run: |
-        echo "📦 Extracting uploaded project zip archive..."
-        unzip -q *.zip -d raw_project_extracted
+        # Create a basic Android structure on the fly
+        mkdir -p android/app/src/main/java/com/example/cameraapp
+        mkdir -p android/app/src/main/res/layout
+        mkdir -p android/app/src/main/assets
         
-        echo "🔍 Locating core Android project root configuration..."
-        # Find where the gradlew file is hidden inside the zip structures
-        GRADLEW_PATH=$(find raw_project_extracted -name "gradlew" | head -n 1)
-        
-        if [ -z "$GRADLEW_PATH" ]; then
-          echo "❌ ERROR: Could not find an Android project structure inside your ZIP file."
-          exit 1
-        fi
-        
-        # Get the directory path where gradlew resides
-        PROJECT_ROOT=$(dirname "$GRADLEW_PATH")
-        echo "🎯 Found project files inside: $PROJECT_ROOT"
-        
-        # Move all files cleanly to the top level root workspace map layer
-        mv "$PROJECT_ROOT"/* . 2>/dev/null || true
-        mv "$PROJECT_ROOT"/.* . 2>/dev/null || true
-        
-        echo "✅ Folder paths flattened successfully!"
+        # Move the compiled HTML/JS/CSS assets into the Android asset directory
+        cp -r dist/* android/app/src/main/assets/
 
-    # Fix: Forcing native permissions overrides to prevent execution access blocks
-    - name: Unlock Android Build Tools Permissions
+        # Create Manifest with hardware access overrides
+        cat << 'EOF' > android/app/src/main/AndroidManifest.xml
+        <?xml version="1.0" encoding="utf-8"?>
+        <manifest xmlns:android="http://android.com" package="com.example.cameraapp">
+            <uses-permission android:name="android.permission.CAMERA" />
+            <uses-permission android:name="android.permission.RECORD_AUDIO" />
+            <uses-permission android:name="android.permission.INTERNET" />
+            <uses-feature android:name="android.hardware.camera" android:required="true" />
+            <application android:allowBackup="true" android:label="Galaxy Camera" android:theme="@android:style/Theme.NoTitleBar.Fullscreen">
+                <activity android:name=".MainActivity" android:exported="true" android:screenOrientation="portrait">
+                    <intent-filter>
+                        <action android:name="android.intent.action.MAIN" />
+                        <category android:name="android.intent.category.LAUNCHER" />
+                    </intent-filter>
+                </activity>
+            </application>
+        </manifest>
+        EOF
+
+        # Create Layout XML
+        cat << 'EOF' > android/app/src/main/res/layout/activity_main.xml
+        <?xml version="1.0" encoding="utf-8"?>
+        <RelativeLayout xmlns:android="http://android.com" android:layout_width="match_parent" android:layout_height="match_parent">
+            <WebView android:id="@+id/webview" android:layout_width="match_parent" android:layout_height="match_parent" />
+        </RelativeLayout>
+        EOF
+
+        # Create MainActivity with hardware bypass loops
+        cat << 'EOF' > android/app/src/main/java/com/example/cameraapp/MainActivity.java
+        package com.example.cameraapp;
+        import android.os.Bundle;
+        import android.webkit.PermissionRequest;
+        import android.webkit.WebChromeClient;
+        import android.webkit.WebView;
+        import android.webkit.WebViewClient;
+        import android.app.Activity;
+        public class MainActivity extends Activity {
+            @Override
+            protected void onCreate(Bundle savedInstanceState) {
+                super.onCreate(savedInstanceState) ;
+                setContentView(R.layout.activity_main);
+                WebView myWebView = findViewById(R.id.webview);
+                myWebView.getSettings().setJavaScriptEnabled(true);
+                myWebView.getSettings().setDomStorageEnabled(true);
+                myWebView.getSettings().setMediaPlaybackRequiresUserGesture(false);
+                myWebView.setWebViewClient(new WebViewClient());
+                myWebView.setWebChromeClient(new WebChromeClient() {
+                    @Override
+                    public void onPermissionRequest(PermissionRequest request) {
+                        request.grant(request.resources());
+                    }
+                });
+                myWebView.loadUrl("file:///android_asset/index.html");
+            }
+        }
+        EOF
+
+        # Create Build Files
+        cat << 'EOF' > android/settings.gradle
+        include ':app'
+        EOF
+
+        cat << 'EOF' > android/build.gradle
+        buildscript {
+            repositories { google(); mavenCentral() }
+            dependencies { classpath 'com.android.tools.build:gradle:8.2.2' }
+        }
+        allprojects { repositories { google(); mavenCentral() } }
+        EOF
+
+        cat << 'EOF' > android/app/build.gradle
+        plugins { id 'com.android.application' }
+        android {
+            namespace 'com.example.cameraapp'
+            compileSdk 34
+            defaultConfig {
+                applicationId "com.example.cameraapp"
+                minSdk 21
+                targetSdk 34
+                versionCode 1
+                versionName "1.0"
+            }
+        }
+        EOF
+
+        # Fetch basic Gradle executable configurations
+        wget -q -O android/gradlew https://githubusercontent.com
+        chmod +x android/gradlew
+        mkdir -p android/gradle/wrapper
+        echo -e "distributionBase=GRADLE_USER_HOME\ntarDistributionPath=wrapper/dists\ndistributionUrl=https\\://services.gradle.org/distributions/gradle-8.4-bin.zip\nzipStoreBase=GRADLE_USER_HOME\nzipStorePath=wrapper/dists" > android/gradle/wrapper/gradle-wrapper.properties
+
+    - name: Compile Project via Cloud Android Compiler
       run: |
-        chmod +x gradlew
-        chmod -R +rwx app/src/main/ || true
+        cd android
+        ./gradlew assembleDebug
 
-    # Fix: Compiling with verbose stack traces to output the exact line error out loud if it fails
-    - name: Compile Universal Debug APK Target
-      run: ./gradlew assembleDebug --stacktrace -x lint -x test
-
-    - name: Upload Finished APK
+    - name: Upload Final APK File
       uses: actions/upload-artifact@v4
       with:
-        name: SamsungCameraApp
-        path: app/build/outputs/apk/debug/app-debug.apk
+        name: SamsungCameraOneUI
+        path: android/app/build/outputs/apk/debug/app-debug.apk
