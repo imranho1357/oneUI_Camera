@@ -58,15 +58,16 @@ jobs:
         
         cp -r dist/* android/app/src/main/assets/
 
+        # Fix: Using escaped raw input strings to protect the android: XML tags completely
         cat << 'EOF' > android/app/src/main/AndroidManifest.xml
         <?xml version="1.0" encoding="utf-8"?>
-        <manifest xmlns:android="http://android.com" package="com.example.cameraapp">
+        <manifest xmlns:android="http://android.com">
             <uses-permission android:name="android.permission.CAMERA" />
             <uses-permission android:name="android.permission.RECORD_AUDIO" />
             <uses-permission android:name="android.permission.INTERNET" />
             <uses-feature android:name="android.hardware.camera" android:required="true" />
             <application android:allowBackup="true" android:label="Galaxy Camera" android:theme="@android:style/Theme.NoTitleBar.Fullscreen">
-                <activity android:name=".MainActivity" android:exported="true" android:screenOrientation="portrait">
+                <activity android:name="com.example.cameraapp.MainActivity" android:exported="true" android:screenOrientation="portrait">
                     <intent-filter>
                         <action android:name="android.intent.action.MAIN" />
                         <category android:name="android.intent.category.LAUNCHER" />
@@ -139,14 +140,12 @@ jobs:
         }
         EOF
 
-        # Configure local wrapper parameters natively
         mkdir -p android/gradle/wrapper
         echo -e "distributionBase=GRADLE_USER_HOME\ntarDistributionPath=wrapper/dists\ndistributionUrl=https\\://services.gradle.org/distributions/gradle-8.4-bin.zip\nzipStoreBase=GRADLE_USER_HOME\nzipStorePath=wrapper/dists" > android/gradle/wrapper/gradle-wrapper.properties
 
     - name: Compile Project via Cloud Android Compiler
       run: |
         cd android
-        # Fix: Running the generation step directly inside its structural directory mapping layer
         gradle wrapper --gradle-version 8.4
         ./gradlew assembleDebug
 
