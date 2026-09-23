@@ -1,0 +1,41 @@
+name: Unzip and Build APK
+on: [push]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up JDK 17
+      uses: actions/setup-java@v4
+      with:
+        java-version: '17'
+        distribution: 'temurin'
+
+    - name: Unzip the AI Studio Project File
+      run: |
+        # This locates any zip file in your repository and extracts it
+        unzip *.zip -d project_extracted
+        
+        # This moves the inner files to the root level so Gradle can find them
+        if [ -d "project_extracted/SamsungCameraApp" ]; then
+          mv project_extracted/SamsungCameraApp/* .
+        elif [ -d "project_extracted/SamsungCameraClone" ]; then
+          mv project_extracted/SamsungCameraClone/* .
+        else
+          # Fallback if the folder inside has a different name
+          mv project_extracted/*/* . || mv project_extracted/* .
+        fi
+
+    - name: Grant execution permissions to Gradle
+      run: chmod +x gradlew
+
+    - name: Compile and Build APK
+      run: ./gradlew assembleDebug
+
+    - name: Upload Finished APK
+      uses: actions/upload-artifact@v4
+      with:
+        name: SamsungCameraApp
+        path: app/build/outputs/apk/debug/app-debug.apk
